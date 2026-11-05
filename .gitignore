@@ -1,0 +1,12 @@
+# 运行时生成 / 易泄密文件，绝不入库
+config.json
+alert_ledger.json
+ws_events.jsonl
+claim_identities.json
+ws_seen.json
+ws_heartbeat.json
+logs/
+__pycache__/
+*.pyc
+*.pyo
+*.log
