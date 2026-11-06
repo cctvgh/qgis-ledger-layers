@@ -75,7 +75,7 @@ layer.setRenderer(renderer)
 ```python
 from qgis.core import QgsPalLayerSettings, QgsTextFormat, QgsVectorLayerSimpleLabeling
 pal = QgsPalLayerSettings()
-pal.fieldName = '"覆盖自然村数"'; pal.isExpression = False     # 字段
+pal.fieldName = '"覆盖自然村数"'; pal.isExpression = True      # ★必须 True：表达式式引用字段
 # 或表达式：pal.fieldName = 'concat("覆盖自然村数",\'村\')'; pal.isExpression = True
 tf = QgsTextFormat(); tf.setSize(10); pal.setFormat(tf)
 pal.placement = QgsPalLayerSettings.OverPoint
@@ -83,6 +83,8 @@ layer.setLabeling(QgsVectorLayerSimpleLabeling(pal)); layer.setLabelsEnabled(Tru
 ```
 
 > 坑：**没有** `setFieldName` / `setExpression` / `setPlacement`（3.36 改为属性赋值）；`CentroidInside` 枚举不存在（用 `OverPoint`）。离屏渲染不保证显示文字，需 QGIS 桌面端打开确认（labelsEnabled=True 已存）。
+
+> ★★isExpression 陷阱（实测最易漏）：字段引用必须 `isExpression=True` + fieldName 带双引号（如 `'"自然村名"'`）；写成 `isExpression=False` + 带引号 → QGIS 当字面字段名找不到 → **标注空白**。唯一能确认生效的是 isExpression=True 的表达式（如 concat(...)）。标注白底描边用 `QgsTextFormat.setBuffer(QgsTextBufferSettings)`（size/enabled/color）。
 
 ## 五、空间关联统计（两个图层按名称 join）
 
@@ -110,3 +112,27 @@ for name,cnt in cover.items():
 - 圆填充：`QgsFillSymbol.createSimple({'color':'rgba(42,92,170,45)','color_border':'#2A5CAA'})`（alpha 45 半透明）。
 - 离屏渲染只验证"图层是否有效/有点"，不保证标注文字；逐像素统计：蓝色圆填充 `c.blue()>c.red() and c.blue()>120` 出现 >500 即圆可见；红点 `c.red()>170 and c.green()<100`。
 - **图层对象在项目里多次重建会留冗余**（同 registry 多个同名）：每次重建前 `removeMapLayer(lid)` 清 registry + `removeChildNode` 清树，再 `addMapLayer+insertLayer`，避免同名重复。验证从 **layerTreeRoot().children()** 读（不要从 mapLayers().values() 读，会拿到 registry 里的旧副本）。
+
+## 八、带地名底图（卫星影像无地名时）
+
+Esri World Imagery 是纯影像**没有地名标注**。要地名/村名，叠加 **Esri World Street Map**（带道路/地名，同一 `server.arcgisonline.com` 域名可连，瓦片实测 200）：
+
+```
+https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}
+```
+
+```python
+uri = ("type=xyz&url=https://server.arcgisonline.com/ArcGIS/rest/services/"
+       "World_Street_Map/MapServer/tile/{z}/{y}/{x}&zmin=0&zmax=19&crs=EPSG:3857")
+street = QgsRasterLayer(uri, "Esri街道标注", "wms")
+root.insertLayer(idx, street)   # 插到 Esri影像 之前(之上)，可勾选切换
+```
+
+- 最可靠的地名是**给自然村层开村名标注**（比底图地名更贴合业务），与街道图/卫星图叠加。
+- 加标注前先诊断：`l.labelsEnabled()`、`pal.fieldName`、`pal.isExpression`，确认 isExpression=True。
+
+## 九、村委会聚合与全量自然村（多 sheet .xls）
+
+- **村委会位置**：按"所属大行政村/村委会"字段 `defaultdict` 分组，取**平均经纬度**（质心近似）生成点层，字段含村委会名/所属自然村数，标注村委会名。
+- **全量自然村**：老 .xls（如《移动网络自然村覆盖清单》）常多 sheet，主数据 sheet 用 `pd.read_excel(file, sheet_name=..., header=1)` 读**子表头**（父表头是合并单元格）；按"所属县级分公司"列 `str.contains("县/区名")` 过滤目标区域；坐标列常叫"村中心经度/纬度"（字段名换行/括号需 clean_col）。
+- 全量自然村标注**密集**，QGIS 自动避让只显示部分；建议标注字号小(7) + 白底描边，或只在放大时显示。

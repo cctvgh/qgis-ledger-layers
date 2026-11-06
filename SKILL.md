@@ -1,6 +1,6 @@
 ---
 name: qgis-ledger-layers
-description: "Convert Excel/CSV ledgers containing longitude/latitude to editable QGIS layers - multi-layer GeoPackage plus .qgs project with editable layers, default zoom, project CRS and built-in XYZ basemap. Also runs spatial coverage analysis: geodesic radius buffer circles, Haversine in-circle counting, rule-based highlight (e.g. at-least-N), field labeling, and aggregate stats exported to Excel. Pipeline: pandas clean to UTF-8 CSV to ogr2ogr to GPKG to QGIS headless Python to offscreen render. Covers blank-canvas cause (missing defaultViewExtent/CRS), invalid buffer geometry (PROJ InvalidLatitude - use geodesic), UTF-8 BOM, Esri tile URL order, GCJ-02 offset, intranet basemap connectivity. Trigger on 转为QGIS图层/加入图层/可补点可编辑/gpkg/qgs/叠加图层/台账上图/点位转图层/划圆/覆盖圆/缓冲圈/覆盖多少/覆盖分析/统计汇总."
+description: "Convert Excel/CSV ledgers containing longitude/latitude to editable QGIS layers - multi-layer GeoPackage plus .qgs project with editable layers, default zoom, project CRS and built-in XYZ basemap. Also runs spatial coverage analysis: geodesic radius buffer circles, Haversine in-circle counting, rule-based highlight (e.g. at-least-N), field labeling, and aggregate stats exported to Excel. Pipeline: pandas clean to UTF-8 CSV to ogr2ogr to GPKG to QGIS headless Python to offscreen render. Covers blank-canvas cause (missing defaultViewExtent/CRS), invalid buffer geometry (PROJ InvalidLatitude - use geodesic), UTF-8 BOM, Esri tile URL order, GCJ-02 offset, intranet basemap connectivity. Trigger on 转为QGIS图层/加入图层/可补点可编辑/gpkg/qgs/叠加图层/台账上图/点位转图层/划圆/覆盖圆/缓冲圈/覆盖多少/覆盖分析/统计汇总/村名标注/村委会/全量自然村/村委会位置."
 name_cn: "台账坐标转QGIS图层"
 description_cn: "含经纬度台账转QGIS可编辑图层(GeoPackage+.qgs项目+内置底图)，并支持覆盖圈分析：半径圆、圈内覆盖对象计数、规则高亮(如≥N)、字段标注、按字段汇总导出。含白板/无效几何(PROJ坑)/编码陷阱/无头API速查/底图连通性实测。"
 ---
@@ -160,6 +160,14 @@ p.addMapLayer(esri, False); p.layerTreeRoot().addLayer(esri)   # 置底
 5. **跨层汇总**：两图层按名称 join，`defaultdict` 按字段（如投效评级 ABCD）汇总；勾稽口径=覆盖总数与逐站清单一致、未匹配=[]。
 6. 圆放**中心点层下方** `root.insertLayer(idx, layer)`；半透明填充 `QgsFillSymbol.createSimple({'color':'rgba(42,92,170,45)'})`。
 7. 详细坑、API 与代码见 `references/qgis-spatial-analysis.md`。
+
+## 八、标注、地名底图与全量要素
+
+- **标注字段 isExpression 陷阱**：字段引用必须 `pal.isExpression=True` + `pal.fieldName='"字段名"'`（带双引号表达式）；写成 `isExpression=False` + 带引号 → QGIS 找不到字段，**标注空白不出字**。
+- **带地名底图**：Esri World Imagery 无地名，叠加 **Esri World Street Map**（同 `server.arcgisonline.com` 域名可连）看道路/地名；最可靠是给自然村层开村名标注。
+- **村委会位置** = 按"所属大行政村/村委会"字段 `groupby` 取平均经纬度生成点层；**全量自然村** = 老 .xls 多 sheet `read_excel(header=1)` 读子表头 + 按"所属县级分公司"过滤区域，坐标列常为"村中心经度/纬度"。
+- 全量密集标注字号小 + 白底描边，QGIS 自动避让。
+- 详见 `references/qgis-spatial-analysis.md` 第八、九节。
 
 ## 交付物清单
 
