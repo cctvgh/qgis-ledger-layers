@@ -49,6 +49,21 @@ layer.setRenderer(QgsCategorizedSymbolRenderer('投效评级', cats))
 
 - **不存在 `QgsSimpleMarkerSymbol`**（import 即报错），一律 `QgsMarkerSymbol.createSimple`
 - 分类字段不存在时降级为单符号，别让脚本崩
+- **分类渲染空值/NULL 隐形**（分类着色的图层补点时评级留空 → 点不显示颜色，看着像丢）：
+  - 空串 `''` 与 SQL `NULL` 是**两个不同值**，必须**分开建两个分类**才能都显示：
+    ```python
+    gray_b = QgsMarkerSymbol.createSimple({'color':'154,160,166,255','size':'2'})
+    gray_n = QgsMarkerSymbol.createSimple({'color':'176,0,32,255','size':'2'})
+    r.addCategory(QgsRendererCategory('',   gray_b, '未评级(空)'))    # value 必须是单值 str ''
+    r.addCategory(QgsRendererCategory(None, gray_n, '未评级(NULL)'))  # value 用 None 表示 SQL NULL
+    ```
+  - **陷阱**：`addCategory` 后 `QgsRendererCategory` 的 value **不要用 list**（如 `[None,'']` 会被 QGIS 规整成 `['','']`，导致 `categoryIndexForValue('')`/`(None)` 都返回 -1，空值**仍不显示**）
+  - **验证必做**（不用离屏渲染，直接查匹配索引）：
+    ```python
+    assert r.categoryIndexForValue('')   >= 0   # 空串命中「未评级(空)」
+    assert r.categoryIndexForValue(None) >= 0   # NULL 命中「未评级(NULL)」
+    ```
+- **分类渲染器增删改**：`addCategory` / `deleteCategory(idx)` / `updateCategoryValue(idx, val)` / `categories()`（返回 list，`c.value()` 取值）
 
 ## 4. 图层树（顺序 = 渲染顺序，第一个在最上、最后一个垫底）
 
@@ -152,3 +167,5 @@ print(p2.crs().authid())     # 应为 EPSG:4326
 | `'QgsReferencedRectangle' object has no attribute 'rect'` | 无此方法 | 对象直接传 `setExtent` |
 | `QgsCoordinateReferenceSystem constructor is deprecated` | 弃用警告 | `fromEpsgId(4326)` |
 | PowerShell `The string is missing the terminator` | `-c "..."` 引号嵌套 | 写 .py 文件再调用 |
+| 进程退出码 `-1073741819`(0xC0000005 段错误)，无任何 Python 输出 | 无头环境调了 `QgsRenderContext.fromMapSettings(ms)` 渲染上下文 | **不要用渲染上下文**验证；改 `renderer.categoryIndexForValue(val)` 做逻辑匹配 |
+| Python `SyntaxError: f-string expression part cannot include a backslash` | **Python 3.12+ 的 f-string 表达式里不允许 `\`**，如 `f"{f['字段']!r}"` 里的反斜杠 | 先取到变量再拼：`name=str(f['字段'])` → 再 `f"...{name}..."`，或用 `%` 格式化 |
