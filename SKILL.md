@@ -120,6 +120,26 @@ p.addMapLayer(esri, False); p.layerTreeRoot().addLayer(esri)   # 置底
 - **严禁**按控制台乱码做"逆编码修复"（GBK↔UTF-8 双重转换）——会把好文件改成"锟斤拷"真乱码；QGIS 无头写出的 .qgs 本来就是正确 UTF-8
 - 动 .qgs 前先 `Copy-Item` 备份，改坏可回滚
 
+## 补点自动填经纬度（让新增要素开箱即用）
+
+生成项目后，为所有点图层的 `LON/LAT` 字段设置默认值 `$x`/`$y`，**新增要素时经纬度自动按几何坐标填入，无需手工录入**（否则 QGIS 桌面端手动补点时经纬度留空，使用者还得自己补算）。
+
+```python
+from qgis.core import QgsApplication, QgsProject, QgsDefaultValue, QgsVectorLayer
+# 初始化/read 项目后：
+for l in p.mapLayers().values():
+    if not isinstance(l, QgsVectorLayer): continue
+    lon_i = l.fields().indexOf("LON"); lat_i = l.fields().indexOf("LAT")
+    if lon_i >= 0 and lat_i >= 0:
+        l.setDefaultValueDefinition(lon_i, QgsDefaultValue("$x"))
+        l.setDefaultValueDefinition(lat_i, QgsDefaultValue("$y"))
+p.write(qgs_path)   # 必写回项目才持久化
+```
+
+- **类名**：QGIS 3.36 是 `QgsDefaultValue`（**不存在** `QgsDefaultValueDefinition`，import 会报 ImportError），构造 `QgsDefaultValue("$x")`
+- `$x`/`$y` 取**几何坐标**；本项目 CRS=EPSG:4326，故新增点自动填 WGS84 经纬度，符合工参口径
+- 写入后务必**重新读回项目**验证 `defaultValueDefinition(idx).isValid()` 为 True，确认已持久化
+
 ## 追加新图层（用户回头加表的标准动作）
 
 用户常分多次把新台账加进同一项目：
